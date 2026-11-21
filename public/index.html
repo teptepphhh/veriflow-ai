@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Veriflow</title>
+  <!-- Browser tab icon (same file as the header logo) -->
+  <link rel="icon" type="image/png" href="logo.png" />
+  <link rel="apple-touch-icon" href="logo.png" />
+  <!-- Google Fonts: Inter for text, JetBrains Mono for code. Falls back to system fonts if offline. -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <!-- Header (background is done in CSS, see .hero) -->
+  <header class="hero">
+    <div class="hero-inner">
+      <div class="brand">
+        <!-- Logo image (public/logo.png) -->
+        <img class="brand-logo" src="logo.png" alt="Veriflow logo" width="48" height="48" />
+        <div>
+          <!-- Two-tone wordmark: "Veri" is white, "flow" has the blue accent (see .wm-flow) -->
+          <h1>Veri<span class="wm-flow">flow</span></h1>
+          <p>API payload &amp; schema drift triage</p>
+        </div>
+      </div>
+      <div class="header-pills">
+        <span class="pill pill-live"><span class="pulse" aria-hidden="true"></span>Schema Guard Active</span>
+        <span class="pill pill-contract">Contract: Order v1</span>
+      </div>
+    </div>
+  </header>
+
+  <main class="container">
+    <!-- Counters (app.js updates countTotal, countValid, countDrift) -->
+    <section class="stats" aria-label="Summary">
+      <!-- Each card is clickable: it filters the audit log and scrolls to it (see app.js) -->
+      <div class="stat stat-total" data-filter="all" role="button" tabindex="0" aria-pressed="true" title="Show all logs">
+        <span class="stat-go" aria-hidden="true">View logs &rarr;</span>
+        <span class="stat-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M4 19V9m6 10V5m6 14v-7m4 7H2" /></svg>
+        </span>
+        <div class="stat-body">
+          <span class="stat-label">Total checks</span>
+          <span class="stat-value" id="countTotal">0</span>
+          <span class="stat-sub">All inspected payloads</span>
+        </div>
+      </div>
+      <div class="stat stat-ok" data-filter="VALID" role="button" tabindex="0" aria-pressed="false" title="Show only valid logs">
+        <span class="stat-go" aria-hidden="true">View logs &rarr;</span>
+        <span class="stat-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
+        </span>
+        <div class="stat-body">
+          <span class="stat-label">Valid</span>
+          <span class="stat-value" id="countValid">0</span>
+          <span class="stat-sub">Passed contract</span>
+        </div>
+      </div>
+      <div class="stat stat-bad" data-filter="DRIFT_DETECTED" role="button" tabindex="0" aria-pressed="false" title="Show only drift logs">
+        <span class="stat-go" aria-hidden="true">View logs &rarr;</span>
+        <span class="stat-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M12 8v5m0 3.5h.01M10.3 3.9L2.5 17.5A2 2 0 004.2 20.5h15.6a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z" /></svg>
+        </span>
+        <div class="stat-body">
+          <span class="stat-label">Drift detected</span>
+          <span class="stat-value" id="countDrift">0</span>
+          <span class="stat-sub">Requires triage</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Editor + result -->
+    <section class="grid">
+      <div class="panel">
+        <div class="panel-head">
+          <h2>Payload editor</h2>
+          <button class="link-btn" id="contractToggle" aria-expanded="false" aria-controls="contractBox">
+            View expected contract
+          </button>
+        </div>
+
+        <!-- Expected contract: hidden by default, filled by app.js from /api/schema -->
+
+        <div id="contractBox" class="contract" hidden></div>
+
+        <div class="panel-body">
+          <div class="toolbar">
+            <span class="toolbar-label">Presets</span>
+            <button class="btn btn-ghost" id="presetValid">Load valid order</button>
+            <button class="btn btn-ghost" id="presetDrift">Load broken (drift) order</button>
+            <select id="presetSelect" class="select" aria-label="More test scenarios">
+              <option value="">More scenarios...</option>
+              <option value="missing_field">Missing required fields</option>
+              <option value="wrong_type">Wrong data types</option>
+              <option value="renamed_field">Renamed fields</option>
+              <option value="invalid_values">Invalid values</option>
+              <option value="empty_items">Empty items list</option>
+            </select>
+            <button class="btn btn-ghost" id="demoBtn" title="Validates every scenario one after another">Run demo</button>
+          </div>
+
+          <!-- Editor box (title bar + textarea) -->
+          <div class="editor">
+            <div class="editor-bar">
+              <span class="editor-dots" aria-hidden="true"><i></i><i></i><i></i></span>
+              <span class="editor-file">payload.json</span>
+              <span class="editor-tools">
+                <button class="editor-btn" id="formatBtn" title="Re-indent the JSON so it is easy to read">Format JSON</button>
+                <button class="editor-btn" id="copyPayloadBtn" title="Copy the editor content">Copy</button>
+                <span class="editor-hint" id="editorHint">JSON &middot; 0 lines</span>
+              </span>
+            </div>
+            <textarea id="payloadInput" spellcheck="false" aria-label="JSON payload"></textarea>
+          </div>
+
+          <!-- Demo progress bar (only visible while "Run demo" is running) -->
+          <div class="progress" id="demoProgress" hidden>
+            <div class="progress-text" id="demoProgressText"></div>
+            <div class="progress-track"><div class="progress-bar" id="demoProgressBar"></div></div>
+          </div>
+
+          <div class="editor-foot">
+            <p id="message" class="message" role="alert"></p>
+            <button class="btn btn-primary" id="validateBtn" title="Shortcut: Ctrl + Enter in the editor">
+              <svg class="icon play-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5l12 7-12 7V5z" /></svg>
+              <span class="spinner" aria-hidden="true" hidden></span>
+              <span id="validateLabel">Validate payload</span>
+              <kbd class="kbd">Ctrl+Enter</kbd>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <h2>Result</h2>
+        </div>
+        <div class="panel-body">
+          <!-- Shown until the first validation, then app.js replaces it -->
+
+          <div id="result" class="result-empty">
+            <svg class="empty-illustration" viewBox="0 0 64 64" aria-hidden="true">
+              <rect x="10" y="8" width="38" height="48" rx="6" />
+              <path d="M18 22h22M18 30h22M18 38h12" />
+              <circle cx="46" cy="44" r="11" class="lens" />
+              <path d="M42 44l3 3 6-6" class="tick" />
+            </svg>
+            <strong>No result yet</strong>
+            <span>Load a preset, then click <em>Validate payload</em> to see issues, root cause and a suggested fix.</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Audit log -->
+    <section class="panel" id="auditLog">
+      <div class="panel-head">
+        <h2>Audit log</h2>
+        <div class="actions">
+          <button class="btn btn-ghost" id="exportJsonBtn">
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11m0 0l-4-4m4 4l4-4M5 20h14" /></svg>
+            Export JSON
+          </button>
+          <button class="btn btn-ghost" id="exportCsvBtn">
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11m0 0l-4-4m4 4l4-4M5 20h14" /></svg>
+            Export CSV
+          </button>
+          <button class="btn btn-danger" id="clearBtn">
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M10 11v6m4-6v6M6 7l1 13h10l1-13M9 7V4h6v3" /></svg>
+            Clear logs
+          </button>
+        </div>
+      </div>
+      <!-- Filter buttons (app.js reads data-filter) and a row counter -->
+      <div class="log-toolbar">
+        <div class="seg" id="logFilter" role="group" aria-label="Filter logs">
+          <button class="seg-btn active" data-filter="all">All</button>
+          <button class="seg-btn" data-filter="VALID">Valid</button>
+          <button class="seg-btn" data-filter="DRIFT_DETECTED">Drift</button>
+        </div>
+        <span class="log-count" id="logCount"></span>
+      </div>
+      <div class="table-wrap">
+        <table class="log-table">
+          <thead>
+            <tr><th>Time</th><th>Status</th><th>Issues</th><th>Source</th><th>Root cause</th></tr>
+          </thead>
+          <tbody id="logBody">
+            <!-- Shown until the first response from /api/logs -->
+            <tr><td colspan="5" class="empty-cell"><span class="spinner small" aria-hidden="true"></span> Loading logs...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <!-- Toast messages appear here (created by showToast in app.js) -->
+  <div class="toast-host" id="toastHost" aria-live="polite"></div>
+
+  <!-- Confirmation dialog (opened by confirmDialog in app.js) -->
+  <div class="modal-backdrop" id="modalBackdrop" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle" aria-describedby="modalText">
+      <h3 id="modalTitle"></h3>
+      <p id="modalText"></p>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" id="modalCancel">Cancel</button>
+        <button class="btn btn-primary" id="modalConfirm">Confirm</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- fixer.js = "Apply fix to editor" logic, app.js = the dashboard -->
+  <script src="fixer.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
